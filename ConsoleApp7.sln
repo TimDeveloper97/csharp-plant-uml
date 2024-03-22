@@ -5,6 +5,8 @@ VisualStudioVersion = 17.3.32721.290
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp7", "ConsoleApp7.csproj", "{27800C21-9476-4514-A68D-90D1BD47FF2E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AsyncEnumerableApi", "..\AsyncEnumerableApi\AsyncEnumerableApi.csproj", "{39147256-17AB-4925-994C-C0924BF77FCA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{27800C21-9476-4514-A68D-90D1BD47FF2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{27800C21-9476-4514-A68D-90D1BD47FF2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{27800C21-9476-4514-A68D-90D1BD47FF2E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{39147256-17AB-4925-994C-C0924BF77FCA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{39147256-17AB-4925-994C-C0924BF77FCA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{39147256-17AB-4925-994C-C0924BF77FCA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{39147256-17AB-4925-994C-C0924BF77FCA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
