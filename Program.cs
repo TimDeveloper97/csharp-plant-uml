@@ -8,12 +8,13 @@ public class State
     public string Name { get; set; }
     public List<Transition> Transitions { get; set; }
     public string Type { get; set; }
-    public int ParrentId { get; set; }
+    public int ParentId { get; set; }
+    public string Content { get; set; }
 
-    public State(int id, string name, string type, int parrentId)
+    public State(int id, string name, string type, int parentId)
     {
         Id = id;
-        ParrentId = parrentId;
+        ParentId = parentId;
         Type = type;
         Name = name;
         Transitions = new List<Transition>();
@@ -36,11 +37,13 @@ public class Transition
 
 public class PlantUmlAnalyzer
 {
+    Dictionary<string, string> _variables = new Dictionary<string, string>();
+
     public List<State> Analyze(int id, string plantUmlCode)
     {
         List<State> states = new List<State>();
-        Stack<int> qParrent = new Stack<int>();
-        qParrent.Push(-1);
+        Stack<int> qParent = new Stack<int>();
+        qParent.Push(-1);
 
         string[] lines = plantUmlCode.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
         foreach (string line in lines)
@@ -49,27 +52,57 @@ public class PlantUmlAnalyzer
 
             if(trimmedLine != string.Empty)
             {
+                // state ...
                 if (trimmedLine.StartsWith("state "))
                 {
-                    string stateName = trimmedLine.Substring(6, trimmedLine.IndexOf('{') - 6).Trim();
-
-                    var sta = FindStateByName(states, stateName, qParrent.Peek());
-                    if(sta == null)
+                    #region Composite
+                    // state State3 {
+                    if (trimmedLine.IndexOf('{') > 0)
                     {
-                        sta = new State(++id, stateName, "State", qParrent.Peek());
+                        string stateName = trimmedLine.Substring(6, trimmedLine.IndexOf('{') - 6).Trim();
 
-                        states.Add(sta);
-                        qParrent.Push(id);
+                        var sta = FindStateByName(states, stateName, qParent.Peek());
+                        if (sta == null)
+                        {
+                            sta = new State(++id, stateName, "State", qParent.Peek());
+
+                            states.Add(sta);
+                            qParent.Push(id);
+                        }
+                        else
+                            qParent.Push(sta.Id);
                     }
-                    else
-                        qParrent.Push(sta.Id);
+                    #endregion
+
+                    #region State normal 
+                    // state "Accumulate Enough Data\nLong State Name" as long1
+                    else if (trimmedLine.Contains(" as "))
+                    {
+                        var splitVariables = GetVariable(trimmedLine.Substring(6), " as ");
+                        _variables.Add(splitVariables.Item2, splitVariables.Item1);
+
+                        // create state
+                        State sourceState = FindStateByName(states, splitVariables.Item1, qParent.Peek(), Direction.Source);
+
+                        if (sourceState == null)
+                        {
+                            var type = "State";
+                            sourceState = new State(++id, splitVariables.Item1, type, qParent.Peek());
+                            states.Add(sourceState);
+                        }
+                    }    
+                    #endregion
                 }
-                else if(trimmedLine.StartsWith("}"))
+                
+                // }
+                else if (trimmedLine.StartsWith("}"))
                 {
-                    // don't remove first parrent = -1
-                    if(qParrent.Count > 1)
-                        qParrent.Pop();
+                    // don't remove first parent = -1
+                    if(qParent.Count > 1)
+                        qParent.Pop();
                 }
+                
+                // State3 --> State3 : Failed
                 else if (trimmedLine.Contains("-->") 
                     || trimmedLine.Contains("->"))
                 {
@@ -80,8 +113,8 @@ public class PlantUmlAnalyzer
                     var split = parts[1].Split(':');
                     string @event = split.Length == 2 ? split[1].Trim() : null;
 
-                    State sourceState = FindStateByName(states, sourceStateName, qParrent.Peek(), Direction.Source);
-                    State targetState = FindStateByName(states, targetStateName, qParrent.Peek(), Direction.Target);
+                    State sourceState = FindStateByName(states, sourceStateName, qParent.Peek(), Direction.Source);
+                    State targetState = FindStateByName(states, targetStateName, qParent.Peek(), Direction.Target);
 
                     if (sourceState == null)
                     {
@@ -89,7 +122,7 @@ public class PlantUmlAnalyzer
                         if (sourceStateName == "[*]")
                             type = "Init";
 
-                        sourceState = new State(++id, sourceStateName, type, qParrent.Peek());
+                        sourceState = new State(++id, sourceStateName, type, qParent.Peek());
                         states.Add(sourceState);
                     }
 
@@ -99,12 +132,21 @@ public class PlantUmlAnalyzer
                         if (targetStateName == "[*]")
                             type = "Init";
 
-                        targetState = new State(++id, targetStateName, type, qParrent.Peek());
+                        targetState = new State(++id, targetStateName, type, qParent.Peek());
                         states.Add(targetState);
                     }
 
                     Transition transition = new Transition(sourceState, targetState, @event);
                     sourceState.Transitions.Add(transition);
+                }
+
+                // long1 : Just a test
+                else if (trimmedLine.Contains(":"))
+                {
+                    var splitVariables = GetVariable(trimmedLine, ":");
+
+                    State sourceState = FindStateByName(states, splitVariables.Item1, qParent.Peek(), Direction.Source);
+                    sourceState.Content += splitVariables.Item2;
                 }
             }    
         }
@@ -112,25 +154,32 @@ public class PlantUmlAnalyzer
         return states;
     }
 
-
-
-    private State FindStateByName(List<State> states, string stateName, int currentaParrentId, Direction? direction = null)
+    private (string, string) GetVariable(string input, string key)
     {
-        if(stateName != "[*]") 
+        var index = input.IndexOf(key);
+        return (input.Substring(0, index).Trim(), input.Substring(index + key.Length).Trim());
+    }
+
+    private State FindStateByName(List<State> states, string stateName, int currentParentId, Direction? direction = null)
+    {
+        if (_variables.ContainsKey(stateName))
+            stateName = _variables[stateName];
+
+        if (stateName != "[*]") 
             return states.Find(state => state.Name == stateName);
         else
         {
             if(direction == null 
                 || direction == Direction.Source)
             {
-                if (currentaParrentId != -1)
+                if (currentParentId != -1)
                     return null;
                 else
-                    return states.Find(state => state.Name == stateName && state.ParrentId == -1);
+                    return states.Find(state => state.Name == stateName && state.ParentId == -1);
             }
             else
             {
-                var exists = states.Where(state => state.ParrentId == currentaParrentId && state.Type == "Init")
+                var exists = states.Where(state => state.ParentId == currentParentId && state.Type == "Init")
                     .OrderBy(state => state.Id).ToList();
                 if (exists.Count() <= 1)
                     return null;
@@ -156,28 +205,23 @@ public class Program
     {
         string plantUmlCode = @"
 @startuml
-scale 350 width
-[*] --> NotShooting
+scale 600 width
 
-state NotShooting {
-  [*] --> Idle
-  Idle --> Configuring : EvConfig
-  Configuring --> Idle : EvConfig
+[*] -> State1
+State1 --> State2 : Succeeded
+State1 --> [*] : Aborted
+State2 --> State3 : Succeeded
+State2 --> [*] : Aborted
+state State3 {
+  state ""Accumulate Enough Data\nLong State Name"" as long1
+  long1 : Just a test
+  [*] --> long1
+  long1 --> long1 : New Data
+  long1 --> ProcessData : Enough Data
 }
-
-state Configuring {
-  [*] --> NewValueSelection
-  NewValueSelection --> NewValuePreview : EvNewValue
-  NewValuePreview --> NewValueSelection : EvNewValueRejected
-  NewValuePreview --> NewValueSelection : EvNewValueSaved
-
-  state NewValuePreview {
-
-     State1 -> State2
-     State2 -> [*]
-  }
-
-}
+State3 --> State3 : Failed
+State3 --> [*] : Succeeded / Save Result
+State3 --> [*] : Aborted
 @enduml
         ";
 
@@ -188,7 +232,9 @@ state Configuring {
         {
             Console.WriteLine("Id: " + state.Id);
             Console.WriteLine("State: " + state.Name);
-            Console.WriteLine("Parrent Id: " + state.ParrentId);
+            Console.WriteLine("Parent Id: " + state.ParentId);
+            if(!string.IsNullOrEmpty(state.Content)) 
+                Console.WriteLine("Content: " + state.Content);
             foreach (Transition transition in state.Transitions)
             {
                 Console.WriteLine("Transition: " + transition.Source.Name + " --(" + transition.Event + ")--> " + transition.Target.Name);
