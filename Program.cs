@@ -263,24 +263,18 @@ public class Program
     {
         string plantUmlCode = @"
 @startuml
-[*] -> State1
-State1 --> State2 : Succeeded
-State1 --> [*] : Aborted
-State2 --> State3 : Succeeded
-State2 --> [*] : Aborted
-state State3 {
-  state ""Accumulate Enough Data"" as long1
-  long1 : Just a test
-  [*] --> long1
-  long1 --> long1 : New Data
-  long1 --> ProcessData : Enough Data
-  State2 --> [H]: Resume
-}
-State3 --> State2 : Pause
-State2 --> State3[H*]: DeepResume
-State3 --> State3 : Failed
-State3 --> [*] : Succeeded / Save Result
-State3 --> [*] : Aborted
+
+state fork_state <<fork>>
+[*] --> fork_state
+fork_state --> State2
+fork_state --> State3
+
+state join_state <<join>>
+State2 --> join_state
+State3 --> join_state
+join_state --> State4
+State4 --> [*]
+
 @enduml
         ";
 
