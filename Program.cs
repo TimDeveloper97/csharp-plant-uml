@@ -50,7 +50,7 @@ public class PlantUmlAnalyzer
         {
             string trimmedLine = line.Trim();
 
-            if(trimmedLine != string.Empty)
+            if (trimmedLine != string.Empty)
             {
                 // state ...
                 if (trimmedLine.StartsWith("state "))
@@ -90,22 +90,24 @@ public class PlantUmlAnalyzer
                             sourceState = new State(++id, splitVariables.Item1, type, qParent.Peek());
                             states.Add(sourceState);
                         }
-                    }    
+                    }
                     #endregion
                 }
-                
+
                 // }
                 else if (trimmedLine.StartsWith("}"))
                 {
                     // don't remove first parent = -1
-                    if(qParent.Count > 1)
+                    if (qParent.Count > 1)
                         qParent.Pop();
                 }
-                
+
                 // State3 --> State3 : Failed
-                else if (trimmedLine.Contains("-->") 
+                else if (trimmedLine.Contains("-->")
                     || trimmedLine.Contains("->"))
                 {
+                    State sourceState = null, targetState = null;
+                    var currentParent = qParent.Peek();
                     string[] parts = trimmedLine.Split(new[] { "-->", "->" }, StringSplitOptions.None);
                     string sourceStateName = parts[0].Trim();
                     string targetStateName = parts[1].Split(':')[0].Trim();
@@ -113,28 +115,27 @@ public class PlantUmlAnalyzer
                     var split = parts[1].Split(':');
                     string @event = split.Length == 2 ? split[1].Trim() : null;
 
-                    State sourceState = FindStateByName(states, sourceStateName, qParent.Peek(), Direction.Source);
-                    State targetState = FindStateByName(states, targetStateName, qParent.Peek(), Direction.Target);
+                    #region Split history
+                    // State2 --> State3[H*]: DeepResume
+                    // State2 --> [H]: Resume
+                    sourceState = TryFindState(states, sourceState, sourceStateName, currentParent, Direction.Source);
+                    targetState = TryFindState(states, targetState, targetStateName, currentParent, Direction.Target);
 
+                    #endregion
+
+                    #region Create State
                     if (sourceState == null)
                     {
-                        var type = "State";
-                        if (sourceStateName == "[*]")
-                            type = "Init";
-
-                        sourceState = new State(++id, sourceStateName, type, qParent.Peek());
+                        sourceState = CreateState(states, ++id, sourceStateName, currentParent);
                         states.Add(sourceState);
-                    }
+                    }    
 
                     if (targetState == null)
                     {
-                        var type = "State";
-                        if (targetStateName == "[*]")
-                            type = "Init";
-
-                        targetState = new State(++id, targetStateName, type, qParent.Peek());
+                        targetState = CreateState(states, ++id, targetStateName, currentParent);
                         states.Add(targetState);
-                    }
+                    }    
+                    #endregion
 
                     Transition transition = new Transition(sourceState, targetState, @event);
                     sourceState.Transitions.Add(transition);
@@ -148,10 +149,67 @@ public class PlantUmlAnalyzer
                     State sourceState = FindStateByName(states, splitVariables.Item1, qParent.Peek(), Direction.Source);
                     sourceState.Content += splitVariables.Item2;
                 }
-            }    
+            }
         }
 
         return states;
+    }
+
+    private State CreateState(List<State> states, int id, string stateName, int parentId)
+    {
+        var type = "State";
+        if (stateName == "[*]")
+            type = "Init";
+
+        // history
+        if (HasHistoryInState(stateName))
+        {
+            var splitHistory = GetHistoryState(stateName);
+
+            // splitHistory: state3 and [H]
+            if (!string.IsNullOrEmpty(splitHistory.Item1))
+            {
+                var parent = states.FirstOrDefault(x => x.Name == splitHistory.Item1);
+                if (parent != null)
+                {
+                    stateName = splitHistory.Item2;
+                    parentId = parent.Id;
+                }
+            }
+        }
+
+        return new State(id, stateName, type, parentId);
+    }
+
+    private State TryFindState(List<State> states, State state, string stateName, int parentId, Direction? direction = null)
+    {
+        if (HasHistoryInState(stateName))
+        {
+            var splitHistory = GetHistoryState(stateName);
+
+            // splitHistory: state3 and [H]
+            if (!string.IsNullOrEmpty(splitHistory.Item1))
+            {
+                var parent = states.FirstOrDefault(x => x.Name == splitHistory.Item1);
+                if (parent != null)
+                {
+                    stateName = splitHistory.Item2;
+                    parentId = parent.Id;
+                }
+            }
+        }
+
+        state = FindStateByName(states, stateName, parentId, direction);
+        return state;
+    }
+
+    private bool HasHistoryInState(string stateName)
+        => stateName.Contains("[") && stateName.Contains("]") && stateName.Contains("H");
+
+    private (string, string) GetHistoryState(string stateName)
+    {
+        var index = stateName.IndexOf("[");
+        return (stateName.Substring(0, index).Trim(), stateName.Substring(index).Trim());
     }
 
     private (string, string) GetVariable(string input, string key)
@@ -165,11 +223,11 @@ public class PlantUmlAnalyzer
         if (_variables.ContainsKey(stateName))
             stateName = _variables[stateName];
 
-        if (stateName != "[*]") 
+        if (stateName != "[*]")
             return states.Find(state => state.Name == stateName);
         else
         {
-            if(direction == null 
+            if (direction == null
                 || direction == Direction.Source)
             {
                 if (currentParentId != -1)
@@ -186,7 +244,7 @@ public class PlantUmlAnalyzer
                 else
                     return exists[1];
             }
-        }    
+        }
     }
 
     private State FindStateById(List<State> states, int id)
@@ -205,20 +263,21 @@ public class Program
     {
         string plantUmlCode = @"
 @startuml
-scale 600 width
-
 [*] -> State1
 State1 --> State2 : Succeeded
 State1 --> [*] : Aborted
 State2 --> State3 : Succeeded
 State2 --> [*] : Aborted
 state State3 {
-  state ""Accumulate Enough Data\nLong State Name"" as long1
+  state ""Accumulate Enough Data"" as long1
   long1 : Just a test
   [*] --> long1
   long1 --> long1 : New Data
   long1 --> ProcessData : Enough Data
+  State2 --> [H]: Resume
 }
+State3 --> State2 : Pause
+State2 --> State3[H*]: DeepResume
 State3 --> State3 : Failed
 State3 --> [*] : Succeeded / Save Result
 State3 --> [*] : Aborted
@@ -233,7 +292,7 @@ State3 --> [*] : Aborted
             Console.WriteLine("Id: " + state.Id);
             Console.WriteLine("State: " + state.Name);
             Console.WriteLine("Parent Id: " + state.ParentId);
-            if(!string.IsNullOrEmpty(state.Content)) 
+            if (!string.IsNullOrEmpty(state.Content))
                 Console.WriteLine("Content: " + state.Content);
             foreach (Transition transition in state.Transitions)
             {
