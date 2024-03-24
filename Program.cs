@@ -83,10 +83,7 @@ public class PlantUmlAnalyzer
                         var stateName = trimmedLine.Substring(6);
                         if (trimmedLine.Contains("<<")
                         || trimmedLine.Contains(">>"))
-                        {
-                            type = trimmedLine.Substring(trimmedLine.IndexOf('<')).Trim();
-                            stateName = stateName.Substring(0, trimmedLine.IndexOf('<') - 6).Trim();
-                        }    
+                            (stateName, type) = GetType(stateName);
 
                         var splitVariables = GetVariable(stateName, " as ");
                         _variables.Add(splitVariables.Item2, splitVariables.Item1);
@@ -103,11 +100,10 @@ public class PlantUmlAnalyzer
                     #endregion
 
                     #region Fork & Join or something like type << >>
-                    else if(trimmedLine.Contains("<<")
+                    else if (trimmedLine.Contains("<<")
                         || trimmedLine.Contains(">>"))
                     {
-                        string stateName = trimmedLine.Substring(6, trimmedLine.IndexOf('<') - 6).Trim();
-                        string type = trimmedLine.Substring(trimmedLine.IndexOf('<')).Trim();
+                        (var stateName, var type) = GetType(trimmedLine.Substring(6));
 
                         var sta = FindStateByName(states, stateName, qParent.Peek());
                         if (sta == null)
@@ -116,7 +112,7 @@ public class PlantUmlAnalyzer
 
                             states.Add(sta);
                         }
-                    }    
+                    }
                     #endregion
                 }
 
@@ -134,10 +130,23 @@ public class PlantUmlAnalyzer
                 {
                     State sourceState = null, targetState = null;
                     var currentParent = qParent.Peek();
+                    string typeSource = "State", typeTarget = "State";
+
+                    // split source and target
                     string[] parts = trimmedLine.Split(new[] { "-->", "->" }, StringSplitOptions.None);
                     string sourceStateName = parts[0].Trim();
                     string targetStateName = parts[1].Split(':')[0].Trim();
 
+                    // type if exist
+                    if (sourceStateName.Contains("<<")
+                        || sourceStateName.Contains(">>"))
+                        (sourceStateName, typeSource) = GetType(sourceStateName);
+
+                    if (targetStateName.Contains("<<")
+                        || targetStateName.Contains(">>"))
+                        (targetStateName, typeTarget) = GetType(targetStateName);
+
+                    // get event
                     var split = parts[1].Split(':');
                     string @event = split.Length == 2 ? split[1].Trim() : null;
 
@@ -146,21 +155,20 @@ public class PlantUmlAnalyzer
                     // State2 --> [H]: Resume
                     sourceState = TryFindState(states, sourceState, sourceStateName, currentParent, Direction.Source);
                     targetState = TryFindState(states, targetState, targetStateName, currentParent, Direction.Target);
-
                     #endregion
 
                     #region Create State
                     if (sourceState == null)
                     {
-                        sourceState = CreateState(states, ++id, sourceStateName, currentParent);
+                        sourceState = CreateState(states, ++id, sourceStateName, currentParent, typeSource);
                         states.Add(sourceState);
-                    }    
+                    }
 
                     if (targetState == null)
                     {
-                        targetState = CreateState(states, ++id, targetStateName, currentParent);
+                        targetState = CreateState(states, ++id, targetStateName, currentParent, typeTarget);
                         states.Add(targetState);
-                    }    
+                    }
                     #endregion
 
                     Transition transition = new Transition(sourceState, targetState, @event);
@@ -181,9 +189,20 @@ public class PlantUmlAnalyzer
         return states;
     }
 
-    private State CreateState(List<State> states, int id, string stateName, int parentId)
+    private (string, string) GetType(string input)
     {
-        var type = "State";
+        if (input.Contains("<<")
+           || input.Contains(">>"))
+        {
+            var index = input.IndexOf("<");
+            return (input.Substring(0, index).Trim(), input.Substring(index).Trim());
+        }
+        else
+            return (input, null);
+    }
+
+    private State CreateState(List<State> states, int id, string stateName, int parentId, string type = "State")
+    {
         if (stateName == "[*]")
             type = "Init";
 
@@ -227,7 +246,7 @@ public class PlantUmlAnalyzer
 
         // if have as
         // meaning variable
-        if(_variables.ContainsKey(stateName))
+        if (_variables.ContainsKey(stateName))
             stateName = _variables[stateName];
 
         // get state
@@ -295,26 +314,19 @@ public class Program
     {
         string plantUmlCode = @"
 @startuml
-state start1  <<start>>
-state choice1 <<choice>>
-state fork1   <<fork>>
-state join2   <<join>>
-state end3    <<end>>
+state Somp {
+  state entry1 <<expansionInput>>
+  state entry2 <<expansionInput>>
+  state sin
+  entry1 --> sin
+  entry2 -> sin
+  sin -> sin2
+  sin2 --> exitA <<expansionOutput>>
+}
 
-[*]     --> choice1 : from start\nto choice
-start1  --> choice1 : from start stereo\nto choice
-
-choice1 --> fork1   : from choice\nto fork
-choice1 --> join2   : from choice\nto join
-choice1 --> end3    : from choice\nto end stereo
-
-fork1   ---> State1 : from fork\nto state
-fork1   --> State2  : from fork\nto state
-
-State2  --> join2   : from state\nto join
-State1  --> [*]     : from state\nto end
-
-join2   --> [*]     : from join\nto end
+[*] --> entry1
+exitA --> Foo
+Foo1 -> entry2
 @enduml
 
         ";
