@@ -283,19 +283,24 @@ public class Program
     {
         string plantUmlCode = @"
 @startuml
+[*] --> Active
 
-state fork_state <<fork>>
-[*] --> fork_state
-fork_state --> State2
-fork_state --> State3
-
-state join_state <<join>>
-State2 --> join_state
-State3 --> join_state
-join_state --> State4
-State4 --> [*]
+state Active {
+  [*] -> NumLockOff
+  NumLockOff --> NumLockOn : EvNumLockPressed
+  NumLockOn --> NumLockOff : EvNumLockPressed
+  --
+  [*] -> CapsLockOff
+  CapsLockOff --> CapsLockOn : EvCapsLockPressed
+  CapsLockOn --> CapsLockOff : EvCapsLockPressed
+  --
+  [*] -> ScrollLockOff
+  ScrollLockOff --> ScrollLockOn : EvScrollLockPressed
+  ScrollLockOn --> ScrollLockOff : EvScrollLockPressed
+}
 
 @enduml
+
         ";
 
         PlantUmlAnalyzer analyzer = new PlantUmlAnalyzer();
