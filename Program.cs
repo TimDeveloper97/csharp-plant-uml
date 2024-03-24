@@ -96,7 +96,6 @@ public class PlantUmlAnalyzer
 
                         if (sourceState == null)
                         {
-                            
                             sourceState = new State(++id, splitVariables.Item1, type, qParent.Peek());
                             states.Add(sourceState);
                         }
@@ -116,10 +115,7 @@ public class PlantUmlAnalyzer
                             sta = new State(++id, stateName, type, qParent.Peek());
 
                             states.Add(sta);
-                            qParent.Push(id);
                         }
-                        else
-                            qParent.Push(sta.Id);
                     }    
                     #endregion
                 }
@@ -299,16 +295,26 @@ public class Program
     {
         string plantUmlCode = @"
 @startuml
-state ""Req(Id)"" as ReqId <<sdlreceive>>
-state ""Minor(Id)"" as MinorId
-state ""Major(Id)"" as MajorId
- 
-state c <<choice>>
- 
-Idle --> ReqId
-ReqId --> c
-c --> MinorId : [Id <= 10]
-c --> MajorId : [Id > 10]
+state start1  <<start>>
+state choice1 <<choice>>
+state fork1   <<fork>>
+state join2   <<join>>
+state end3    <<end>>
+
+[*]     --> choice1 : from start\nto choice
+start1  --> choice1 : from start stereo\nto choice
+
+choice1 --> fork1   : from choice\nto fork
+choice1 --> join2   : from choice\nto join
+choice1 --> end3    : from choice\nto end stereo
+
+fork1   ---> State1 : from fork\nto state
+fork1   --> State2  : from fork\nto state
+
+State2  --> join2   : from state\nto join
+State1  --> [*]     : from state\nto end
+
+join2   --> [*]     : from join\nto end
 @enduml
 
         ";
