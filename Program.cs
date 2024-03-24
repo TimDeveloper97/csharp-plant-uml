@@ -92,6 +92,26 @@ public class PlantUmlAnalyzer
                         }
                     }
                     #endregion
+
+                    #region Fork & Join
+                    else if(trimmedLine.Contains("<<fork>>")
+                        || trimmedLine.Contains("<<join>>"))
+                    {
+                        string stateName = trimmedLine.Substring(6, trimmedLine.IndexOf('<') - 6).Trim();
+                        string type = trimmedLine.Substring(trimmedLine.IndexOf('<')).Trim();
+
+                        var sta = FindStateByName(states, stateName, qParent.Peek());
+                        if (sta == null)
+                        {
+                            sta = new State(++id, stateName, type, qParent.Peek());
+
+                            states.Add(sta);
+                            qParent.Push(id);
+                        }
+                        else
+                            qParent.Push(sta.Id);
+                    }    
+                    #endregion
                 }
 
                 // }
@@ -285,6 +305,7 @@ State4 --> [*]
         {
             Console.WriteLine("Id: " + state.Id);
             Console.WriteLine("State: " + state.Name);
+            Console.WriteLine("Type: " + state.Type);
             Console.WriteLine("Parent Id: " + state.ParentId);
             if (!string.IsNullOrEmpty(state.Content))
                 Console.WriteLine("Content: " + state.Content);
