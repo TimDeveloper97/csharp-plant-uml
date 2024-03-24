@@ -78,7 +78,17 @@ public class PlantUmlAnalyzer
                     // state "Accumulate Enough Data\nLong State Name" as long1
                     else if (trimmedLine.Contains(" as "))
                     {
-                        var splitVariables = GetVariable(trimmedLine.Substring(6), " as ");
+                        //state ""Req(Id)"" as ReqId <<sdlreceive>>
+                        var type = "State";
+                        var stateName = trimmedLine.Substring(6);
+                        if (trimmedLine.Contains("<<")
+                        || trimmedLine.Contains(">>"))
+                        {
+                            type = trimmedLine.Substring(trimmedLine.IndexOf('<')).Trim();
+                            stateName = stateName.Substring(0, trimmedLine.IndexOf('<') - 6).Trim();
+                        }    
+
+                        var splitVariables = GetVariable(stateName, " as ");
                         _variables.Add(splitVariables.Item2, splitVariables.Item1);
 
                         // create state
@@ -86,16 +96,16 @@ public class PlantUmlAnalyzer
 
                         if (sourceState == null)
                         {
-                            var type = "State";
+                            
                             sourceState = new State(++id, splitVariables.Item1, type, qParent.Peek());
                             states.Add(sourceState);
                         }
                     }
                     #endregion
 
-                    #region Fork & Join
-                    else if(trimmedLine.Contains("<<fork>>")
-                        || trimmedLine.Contains("<<join>>"))
+                    #region Fork & Join or something like type << >>
+                    else if(trimmedLine.Contains("<<")
+                        || trimmedLine.Contains(">>"))
                     {
                         string stateName = trimmedLine.Substring(6, trimmedLine.IndexOf('<') - 6).Trim();
                         string type = trimmedLine.Substring(trimmedLine.IndexOf('<')).Trim();
@@ -219,6 +229,12 @@ public class PlantUmlAnalyzer
             }
         }
 
+        // if have as
+        // meaning variable
+        if(_variables.ContainsKey(stateName))
+            stateName = _variables[stateName];
+
+        // get state
         state = FindStateByName(states, stateName, parentId, direction);
         return state;
     }
@@ -283,22 +299,16 @@ public class Program
     {
         string plantUmlCode = @"
 @startuml
-[*] --> Active
-
-state Active {
-  [*] -> NumLockOff
-  NumLockOff --> NumLockOn : EvNumLockPressed
-  NumLockOn --> NumLockOff : EvNumLockPressed
-  --
-  [*] -> CapsLockOff
-  CapsLockOff --> CapsLockOn : EvCapsLockPressed
-  CapsLockOn --> CapsLockOff : EvCapsLockPressed
-  --
-  [*] -> ScrollLockOff
-  ScrollLockOff --> ScrollLockOn : EvScrollLockPressed
-  ScrollLockOn --> ScrollLockOff : EvScrollLockPressed
-}
-
+state ""Req(Id)"" as ReqId <<sdlreceive>>
+state ""Minor(Id)"" as MinorId
+state ""Major(Id)"" as MajorId
+ 
+state c <<choice>>
+ 
+Idle --> ReqId
+ReqId --> c
+c --> MinorId : [Id <= 10]
+c --> MajorId : [Id > 10]
 @enduml
 
         ";
